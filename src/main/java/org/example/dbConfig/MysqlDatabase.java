@@ -1,8 +1,6 @@
 package org.example.dbConfig;
 
-//import org.example.elements.TestData;
-import org.example.PropertyReader;
-import org.example.TestData;
+import org.example.propertyReader.PropertyReader;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,12 +11,15 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
-public class Database {
-    private static final Database INSTANCE = new Database();
+public class MysqlDatabase {
+    private static final MysqlDatabase INSTANCE = new MysqlDatabase();
 
     private static Connection mysqlConnection;
-    private Database () {
+
+    private MysqlDatabase() {
 
         try {
             String mysqlConnectionUrl = PropertyReader.getConnectionUrlForMysql();
@@ -30,7 +31,7 @@ public class Database {
         }
     }
 
-    public static Database getInstance() {
+    public static MysqlDatabase getInstance() {
         return INSTANCE;
     }
 
@@ -38,36 +39,47 @@ public class Database {
         return mysqlConnection;
     }
 
-    public int executeUpdate(String query) {
-        try(Statement statement = mysqlConnection.createStatement()) {
-            return statement.executeUpdate(query);
-        } catch(SQLException e) {
-            System.out.println(String.format("Exception. Reason: %s", e.getMessage()));
-            throw new RuntimeException("Can not run query.");
+    public class ExecuteResultObjects{
+        public String object1;
+        public String object2;
+
+        public ExecuteResultObjects(String object1, String object2){
+            this.object1 = object1;
+            this.object2 = object2;
         }
     }
 
-    public void executeResult(String query) {
-        try(Statement statement = mysqlConnection.createStatement()) {
-            ResultSet resultSet = statement.executeQuery(query);
-            while(resultSet.next()) {
-                TestData td = new TestData(resultSet.getInt("id"), resultSet.getString("name"));
-                System.out.println("mysql ------>>>> " + td.toString());
+    public List<ExecuteResultObjects> executeResult(String query, String label1, String label2 ) {
+        List<ExecuteResultObjects> result = new ArrayList<>();
+        try (Statement statement = mysqlConnection.createStatement()) {
+            ResultSet resultSet = null;
+            if (!query.trim().isEmpty()) {
+                resultSet = statement.executeQuery(query);
+                    while (resultSet.next()) {
+                        result.add(new ExecuteResultObjects(resultSet.getObject(label1).toString(), resultSet.getString(label2).toString()));
+                        //System.out.println(resultSet.getObject(label1).toString() + " " + resultSet.getString(label2).toString());
+                    }
             }
-        } catch(SQLException e) {
+        } catch (SQLException e) {
             System.out.println(String.format("Exception. Reason: %s", e.getMessage()));
             throw new RuntimeException("Can not run query.");
         }
+        return result;
     }
 
-    public void execute(String fileName) {
-        try(Statement statement = mysqlConnection.createStatement()) {
+    public void executeUpdate(String fileName) {
+        try (Statement statement = mysqlConnection.createStatement()) {
             String content = new String(Files.readAllBytes(Paths.get(fileName)));
-            statement.execute(content);
-        } catch(SQLException e) {
+            String[] queries = content.toString().split(";");
+            for (String query : queries) {
+                if (!query.trim().isEmpty()) {
+                    statement.executeUpdate(query);
+                }
+            }
+        } catch (SQLException e) {
             System.out.println(String.format("Exception. Reason: %s", e.getMessage()));
             throw new RuntimeException("Can not run query.");
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
